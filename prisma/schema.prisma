@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+model Poem {
+  id          String   @id @default(cuid())
+  title       String
+
+  content_en  String
+  content_hi  String
+  content_gu  String
+
+  language    String?
+
+  pdfUrl      String?
+  audioUrl    String?
+
+  likes       Int      @default(0)
+
+  createdAt   DateTime @default(now())
+}
+
+model AboutPage {
+  id              String   @id @default(cuid())
+
+  name            String
+  subtitle        String?
+  intro           String?
+  heroImage       String?
+  portraitImage   String?
+
+  biographyTitle  String?
+  biography       String?
+
+  legacyTitle     String?
+  legacyContent   String?
+
+  quote           String?
+  quoteAuthor     String?
+
+  isPublished     Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  lifeEvents      LifeEvent[]
+  photos          AboutPhoto[]
+  videos          AboutVideo[]
+  awards          AboutAward[]
+}
+
+model LifeEvent {
+  id          String   @id @default(cuid())
+  aboutPageId String
+
+  year        String
+  title       String
+  description String?
+  image       String?
+
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  aboutPage   AboutPage @relation(fields: [aboutPageId], references: [id], onDelete: Cascade)
+
+  @@index([aboutPageId])
+}
+
+model AboutPhoto {
+  id          String   @id @default(cuid())
+  aboutPageId String
+
+  imageUrl    String
+  cloudinaryPublicId String?
+  title       String?
+  caption     String?
+  altText     String?
+  category    String?
+
+  sortOrder   Int      @default(0)
+  featured    Boolean  @default(false)
+  isPublished Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  aboutPage   AboutPage @relation(fields: [aboutPageId], references: [id], onDelete: Cascade)
+
+  @@index([aboutPageId])
+}
+
+model AboutVideo {
+  id          String   @id @default(cuid())
+  aboutPageId String
+
+  title       String
+  description String?
+
+  videoUrl    String
+  cloudinaryPublicId String?
+  thumbnail   String?
+  category    String?
+
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  aboutPage   AboutPage @relation(fields: [aboutPageId], references: [id], onDelete: Cascade)
+
+  @@index([aboutPageId])
+}
+
+model AboutAward {
+  id          String   @id @default(cuid())
+  aboutPageId String
+
+  year        String
+  title       String
+  organization String?
+  description String?
+  image       String?
+
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  aboutPage   AboutPage @relation(fields: [aboutPageId], references: [id], onDelete: Cascade)
+
+  @@index([aboutPageId])
+}
+
+model Achievement {
+  id                 String   @id @default(cuid())
+  title              String
+  year               String?
+  organization       String?
+  category           String?
+  description        String?
+  imageUrl           String?
+  cloudinaryPublicId String?
+  featured           Boolean  @default(false)
+  isPublished        Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([isPublished, sortOrder])
+  @@index([year])
+}

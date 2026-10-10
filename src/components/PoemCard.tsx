@@ -1,0 +1,133 @@
+﻿"use client";
+
+import { useState } from "react";
+
+type Poem = {
+  id: string;
+  title: string;
+  slug?: string | null;
+  content_gu?: string | null;
+  content_hi?: string | null;
+  content_en?: string | null;
+  likes?: number | null;
+  featured?: boolean;
+  pdfUrl?: string | null;
+};
+
+type PoemCardProps = {
+  poem?: Poem;
+  featured?: boolean;
+  pdfUrl?: string | null;
+};
+
+export default function PoemCard({
+  poem,
+  featured = false,
+}: PoemCardProps) {
+  const [likes, setLikes] = useState(poem?.likes ?? 0);
+  const [liking, setLiking] = useState(false);
+
+  async function handleLike() {
+    if (!poem?.id || liking) return;
+
+    setLiking(true);
+    setLikes((value) => value + 1);
+
+    try {
+      const response = await fetch(`/api/poems/${poem.id}/like`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        setLikes((value) => Math.max(0, value - 1));
+      }
+    } catch {
+      setLikes((value) => Math.max(0, value - 1));
+    } finally {
+      setLiking(false);
+    }
+  }
+
+  if (!poem) return null;
+
+  const translations = [
+    { label: "Gujarati", content: poem.content_gu },
+    { label: "Hindi", content: poem.content_hi },
+    { label: "English", content: poem.content_en },
+  ].filter(
+    (item): item is { label: string; content: string } =>
+      Boolean(item.content?.trim())
+  );
+
+  return (
+    <article className="group min-w-0 rounded-2xl border border-black/10 bg-white p-5 shadow-sm transition hover:shadow-lg sm:p-6">
+      <div className="min-w-0">
+        <h3 className="break-words font-serif text-xl font-bold leading-snug text-[#171315] sm:text-2xl">
+          {poem.title}
+        </h3>
+
+        {(featured || poem.featured) && (
+          <span className="mt-2 inline-flex rounded-full bg-[#f5e9ed] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8f1239]">
+            Featured
+          </span>
+        )}
+      </div>
+
+      <div className="mt-5 space-y-6">
+        {translations.length > 0 ? (
+          translations.map((item) => (
+            <section key={item.label} className="min-w-0">
+              <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-[#8f1239]">
+                {item.label}
+              </h4>
+
+              <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-8 text-black/75 sm:text-base">
+                {item.content}
+              </div>
+            </section>
+          ))
+        ) : (
+          <p className="text-sm text-black/50">
+            No poem content is available.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-black/5 pt-4">
+        <button
+          type="button"
+          onClick={handleLike}
+          disabled={liking}
+          aria-label={`Like poem, ${likes} likes`}
+          className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#8f1239] transition hover:bg-[#f5e9ed] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span aria-hidden="true">♥</span>
+          <span>{likes}</span>
+        </button>
+
+        <div className="flex flex-wrap items-center gap-4">
+          {poem.pdfUrl && (
+            <a
+              href={poem.pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center rounded-xl bg-[#8f1239] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#74102f]"
+            >
+              Download PDF ↓
+            </a>
+          )}
+
+          {poem.slug && (
+            <a
+              href={`/poems/${poem.slug}`}
+              className="text-sm font-semibold text-[#8f1239] hover:underline"
+            >
+              Read poem →
+            </a>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
