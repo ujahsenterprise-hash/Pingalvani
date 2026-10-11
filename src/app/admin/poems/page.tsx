@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -121,14 +121,111 @@ export default function AdminPoemsPage() {
     setUploading(kind);
     setError("");
     setMessage("");
+
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("kind", kind);
-      const response = await fetch("/api/admin/poems/upload", { method: "POST", body: formData });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Upload failed.");
-      setForm((current) => ({ ...current, [kind === "pdf" ? "pdfUrl" : "audioUrl"]: data.url }));
+      if (kind === "pdf" && file.type !== "application/pdf") {
+        throw new Error("Only PDF files are allowed.");
+      }
+
+      if (kind === "audio" && !file.type.startsWith("audio/")) {
+        throw new Error("Please select an audio file.");
+      }
+
+      const maxBytes = kind === "pdf"
+        ? 20 * 1024 * 1024
+        : 50 * 1024 * 1024;
+
+      if (file.size > maxBytes) {
+        throw new Error(
+          `File is too large. Maximum size is ${kind === "pdf" ? "20MB" : "50MB"}.`
+        );
+      }
+
+      const signatureResponse = await fetch(
+        "/api/admin/poems/upload-signature",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind }),
+          cache: "no-store",
+        }
+      );
+
+      const signatureText = await signatureResponse.text();
+      let signatureData: Record<string, unknown>;
+
+      try {
+        signatureData = JSON.parse(signatureText);
+      } catch {
+        throw new Error(
+          `Could not prepare upload (HTTP ${signatureResponse.status}).`
+        );
+      }
+
+      if (!signatureResponse.ok) {
+        throw new Error(
+          typeof signatureData.error === "string"
+            ? signatureData.error
+            : "Unable to prepare upload."
+        );
+      }
+
+      const { cloudName, apiKey, timestamp, folder, signature, resourceType } =
+        signatureData;
+
+      if (
+        typeof cloudName !== "string" ||
+        typeof apiKey !== "string" ||
+        typeof timestamp !== "string" ||
+        typeof folder !== "string" ||
+        typeof signature !== "string" ||
+        typeof resourceType !== "string"
+      ) {
+        throw new Error("Invalid upload configuration received from server.");
+      }
+
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      uploadData.append("api_key", apiKey);
+      uploadData.append("timestamp", timestamp);
+      uploadData.append("folder", folder);
+      uploadData.append("signature", signature);
+
+      const cloudinaryResponse = await fetch(
+        `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/${resourceType}/upload`,
+        { method: "POST", body: uploadData }
+      );
+
+      const cloudinaryText = await cloudinaryResponse.text();
+      let cloudinaryData: Record<string, unknown>;
+
+      try {
+        cloudinaryData = JSON.parse(cloudinaryText);
+      } catch {
+        throw new Error(
+          `Cloudinary returned an invalid response (HTTP ${cloudinaryResponse.status}).`
+        );
+      }
+
+      if (
+        !cloudinaryResponse.ok ||
+        typeof cloudinaryData.secure_url !== "string"
+      ) {
+        const cloudinaryError = cloudinaryData.error as
+          | { message?: string }
+          | undefined;
+
+        throw new Error(
+          cloudinaryError?.message || "Cloudinary upload failed."
+        );
+      }
+
+      setForm((current) => ({
+        ...current,
+        [kind === "pdf" ? "pdfUrl" : "audioUrl"]:
+          cloudinaryData.secure_url as string,
+      }));
+
       setMessage(`${kind === "pdf" ? "PDF" : "Audio"} uploaded to Cloudinary.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
@@ -178,19 +275,19 @@ export default function AdminPoemsPage() {
           </div>
 
           <div className="mt-6 grid gap-5 md:grid-cols-2">
-            <label className="md:col-span-2"><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-black/50">Poem title *</span><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. મારી માટી" className="w-full rounded-xl border border-black/10 bg-[#fbfaf8] px-4 py-3 text-sm outline-none focus:border-[#8f1239]" /></label>
+            <label className="md:col-span-2"><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-black/50">Poem title *</span><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. àª®àª¾àª°à«€ àª®àª¾àªŸà«€" className="w-full rounded-xl border border-black/10 bg-[#fbfaf8] px-4 py-3 text-sm outline-none focus:border-[#8f1239]" /></label>
             <label><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-black/50">Primary language</span><select value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })} className="w-full rounded-xl border border-black/10 bg-[#fbfaf8] px-4 py-3 text-sm outline-none focus:border-[#8f1239]"><option>Gujarati</option><option>Hindi</option><option>English</option><option>Multilingual</option></select></label>
           </div>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-3">
             <TextArea label="English" value={form.content_en} onChange={(v) => setForm({ ...form, content_en: v })} placeholder="English version..." />
-            <TextArea label="Hindi" value={form.content_hi} onChange={(v) => setForm({ ...form, content_hi: v })} placeholder="हिंदी संस्करण..." />
-            <TextArea label="Gujarati" value={form.content_gu} onChange={(v) => setForm({ ...form, content_gu: v })} placeholder="ગુજરાતી આવૃત્તિ..." />
+            <TextArea label="Hindi" value={form.content_hi} onChange={(v) => setForm({ ...form, content_hi: v })} placeholder="à¤¹à¤¿à¤‚à¤¦à¥€ à¤¸à¤‚à¤¸à¥à¤•à¤°à¤£..." />
+            <TextArea label="Gujarati" value={form.content_gu} onChange={(v) => setForm({ ...form, content_gu: v })} placeholder="àª—à«àªœàª°àª¾àª¤à«€ àª†àªµà«ƒàª¤à«àª¤àª¿..." />
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <MediaBox title="Poem PDF" description="Optional PDF document · max 20MB" url={form.pdfUrl} uploading={uploading === "pdf"} onChoose={() => pdfRef.current?.click()} onClear={() => setForm({ ...form, pdfUrl: "" })} />
-            <MediaBox title="Poem Audio" description="Optional audio recording · max 50MB" url={form.audioUrl} uploading={uploading === "audio"} onChoose={() => audioRef.current?.click()} onClear={() => setForm({ ...form, audioUrl: "" })} />
+            <MediaBox title="Poem PDF" description="Optional PDF document Â· max 20MB" url={form.pdfUrl} uploading={uploading === "pdf"} onChoose={() => pdfRef.current?.click()} onClear={() => setForm({ ...form, pdfUrl: "" })} />
+            <MediaBox title="Poem Audio" description="Optional audio recording Â· max 50MB" url={form.audioUrl} uploading={uploading === "audio"} onChoose={() => audioRef.current?.click()} onClear={() => setForm({ ...form, audioUrl: "" })} />
           </div>
           <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => e.target.files?.[0] && uploadMedia("pdf", e.target.files[0])} />
           <input ref={audioRef} type="file" accept="audio/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadMedia("audio", e.target.files[0])} />
@@ -234,3 +331,4 @@ function TextArea({ label, value, onChange, placeholder }: { label: string; valu
 function MediaBox({ title, description, url, uploading, onChoose, onClear }: { title: string; description: string; url: string; uploading: boolean; onChoose: () => void; onClear: () => void }) {
   return <div className="rounded-2xl border border-dashed border-black/15 bg-[#fbfaf8] p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs text-black/40">{description}</p></div><button type="button" disabled={uploading} onClick={onChoose} className="rounded-xl bg-white px-3 py-2 text-xs font-bold shadow-sm ring-1 ring-black/10 disabled:opacity-50">{uploading ? "Uploading..." : url ? "Replace" : "Upload"}</button></div>{url && <div className="mt-3 flex items-center gap-3 rounded-xl bg-white p-3 ring-1 ring-black/5"><span className="min-w-0 flex-1 truncate text-xs text-black/50">{url}</span><button type="button" onClick={onClear} className="text-xs font-bold text-red-600">Remove</button></div>}</div>;
 }
+
